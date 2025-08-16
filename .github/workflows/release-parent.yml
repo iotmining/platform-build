@@ -2,8 +2,8 @@ name: Release BOM & Parent to GitHub Packages
 
 on:
   push:
-    branches: [ main ]                 # also run on main pushes (handy while testing)
-    tags: ['20*.*.*', '2025.*']        # run on release tags like 2025.08.13
+    branches: [ main ]                 # keep while testing
+    tags: ['20*.*.*', '2025.*']        # release tags e.g. 2025.08.13
   workflow_dispatch: {}
 
 permissions:
@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Injects <server id="github"> with GITHUB_ACTOR / GITHUB_TOKEN into settings.xml
+      # 1) Injects <server id="github"> into a settings.xml and returns its path
       - name: Setup Java 21 (with publish server creds)
         id: setup-java
         uses: actions/setup-java@v4
@@ -28,16 +28,48 @@ jobs:
           server-username: GITHUB_ACTOR
           server-password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Optional sanity check (don't remove settings.xml!)
-      - name: Show settings path (debug)
+      # 2) Sanity-check that <server id="github"> exists in that settings file
+      - name: Verify Maven server creds present
         run: |
-          echo "Using settings at: ${{ steps.setup-java.outputs.settings-path || '~/.m2/settings.xml' }}"
-          grep -A2 '<id>github</id>' ~/.m2/settings.xml || true
+          echo "Settings at: ${{ steps.setup-java.outputs.settings-path }}"
+          grep -A2 '<id>github</id>' "${{ steps.setup-java.outputs.settings-path }}" || (echo "Missing <server id=\"github\">" && exit 1)
 
-      # Deploy BOM first
+      # 3) Ensure your POMs are pointing at the right repo URL
+      - name: Show distributionManagement URLs (debug)
+        run: |
+          echo "---- iotmining-bom/pom.xml ----"
+          xmlstarlet sel -N x=http://maven.apache.org/POM/4.0.0 \
+            -t -m "/x:project/x:distributionManagement/*/x:url" -v . -n iotmining-bom/pom.xml || true
+          echo "---- iotmining-parent/pom.xml ----"
+          xmlstarlet sel -N x=http://maven.apache.org/POM/4.0.0 \
+            -t -m "/x:project/x:distributionManagement/*/x:url" -v . -n iotmining-parent/pom.xml || true
+        shell: bash
+      - name: Install xmlstarlet (only used above; safe to remove later)
+        if: failure()    # install only if previous step failed due to missing xmlstarlet
+        run: sudo apt-get update && sudo apt-get install -y xmlstarlet
+
+      # 4) Deploy BOM first (explicitly use the exact settings path)
       - name: Deploy BOM
-        run: mvn -B -DskipTests clean deploy -f iotmining-bom/pom.xml
+        run: mvn -B -s "${{ steps.setup-java.outputs.settings-path }}" -DskipTests clean deploy -f iotmining-bom/pom.xml
 
-      # Then Parent (which imports the BOM)
+      # 5) Deploy Parent (imports the BOM)
       - name: Deploy Parent
-        run: mvn -B -DskipTests clean deploy -f iotmining-parent/pom.xml
+        run: mvn -B -s "${{ steps.setup-java.outputs.settings-path }}" -DskipTests clean deploy -f iotmining-parent/pom.xml
+
+      # 6) OPTIONAL fallback: if 401 persists, try with a PAT (create org/repo secret GH_PACKAGES_TOKEN)
+      - name: Retry deploy with PAT (fallback)
+        if: failure() && secrets.GH_PACKAGES_TOKEN != ''
+        env:
+          SETTINGS: ${{ steps.setup-java.outputs.settings-path }}
+          GH_ACTOR: ${{ github.actor }}
+          GH_PAT: ${{ secrets.GH_PACKAGES_TOKEN }}   # must have write:packages; if org requires SSO, enable it for this PAT
+        run: |
+          echo "Using PAT fallback..."
+          # Append a server block with PAT (don’t overwrite existing settings)
+          TMPSET="$RUNNER_TEMP/settings.xml"
+          cp "$SETTINGS" "$TMPSET"
+          awk '1; /<servers>/ && !p {print "  <server><id>github</id><username>'"$GH_ACTOR"'</username><password>'"$GH_PAT"'</password></server>"; p=1}' "$TMPSET" > "$TMPSET.new" || cp "$TMPSET" "$TMPSET.new"
+          mv "$TMPSET.new" "$TMPSET"
+
+          mvn -B -s "$TMPSET" -DskipTests clean deploy -f iotmining-bom/pom.xml || true
+          mvn -B -s "$TMPSET" -DskipTests clean deploy -f iotmining-parent/pom.xml
