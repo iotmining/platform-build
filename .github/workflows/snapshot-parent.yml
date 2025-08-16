@@ -1,38 +1,50 @@
-name: snapshot-publish
+name: Snapshot Deploy (BOM & Parent)
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ main ]
+  workflow_dispatch: {}
 
 permissions:
   contents: read
   packages: write
 
 jobs:
-  publish-snapshot:
+  snapshot:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Java
+      - name: Setup Java 21
         uses: actions/setup-java@v4
         with:
+          distribution: temurin
           java-version: '21'
-          distribution: 'temurin'
+          cache: maven
           server-id: github
           server-username: GITHUB_ACTOR
-          server-password: GITHUB_TOKEN
+          server-password: ${{ secrets.GH_PACKAGES_TOKEN }}
 
-      - name: Ensure -SNAPSHOT version
+      - name: Write Maven settings.xml for GH Packages
         run: |
-          CURR=$(mvn -q -Dexec.executable=echo -Dexec.args='${project.version}' --non-recursive exec:exec)
-          if [[ "$CURR" != *-SNAPSHOT ]]; then
-            NEXT="${CURR}-SNAPSHOT"
-            mvn -B -ntp versions:set -DnewVersion=${NEXT} -pl bom,parent
-            mvn -B -ntp versions:commit
-          fi
-
-      - name: Deploy snapshot
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml <<'XML'
+          <settings>
+            <servers>
+              <server>
+                <id>github</id>
+                <username>${env.GITHUB_ACTOR}</username>
+                <password>${env.GITHUB_TOKEN}</password>
+              </server>
+            </servers>
+          </settings>
+          XML
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: mvn -B -ntp -DskipTests deploy
+          GITHUB_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+
+      - name: Deploy BOM (SNAPSHOT)
+        run: mvn -B -s ~/.m2/settings.xml -DskipTests -pl :iotmining-bom -am versions:set -DnewVersion=2025.08.14-SNAPSHOT deploy
+
+      - name: Deploy Parent (SNAPSHOT)
+        run: mvn -B -s ~/.m2/settings.xml -DskipTests -pl :iotmining-parent -am versions:set -DnewVersion=2025.08.14-SNAPSHOT deploy

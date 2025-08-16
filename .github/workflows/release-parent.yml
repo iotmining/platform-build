@@ -1,45 +1,55 @@
-name: release-publish
+name: Release BOM & Parent to GitHub Packages
 
 on:
   push:
     tags:
-      - 'v*'   # e.g., v2025.08.16
+      - '20*.*.*'
+      - '2025.*'
+  workflow_dispatch: {}
 
 permissions:
   contents: read
   packages: write
 
 jobs:
-  publish:
+  release:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set version from tag
-        id: ver
-        run: |
-          TAG="${GITHUB_REF_NAME}"           # e.g., v2025.08.16
-          VER="${TAG#v}"                     # 2025.08.16
-          echo "version=$VER" >> $GITHUB_OUTPUT
-
-      - name: Setup Java
+      - name: Setup Java 21
         uses: actions/setup-java@v4
         with:
+          distribution: temurin
           java-version: '21'
-          distribution: 'temurin'
+          cache: maven
           server-id: github
           server-username: GITHUB_ACTOR
-          server-password: GITHUB_TOKEN
+          server-password: ${{ secrets.GH_PACKAGES_TOKEN }}
 
-      - name: Update module versions to tag
+      - name: Write Maven settings.xml for GH Packages
         run: |
-          mvn -B -ntp versions:set -DnewVersion=${{ steps.ver.outputs.version }} -pl bom,parent
-          mvn -B -ntp versions:commit
-
-      - name: Deploy to GitHub Packages
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml <<'XML'
+          <settings>
+            <servers>
+              <server>
+                <id>github</id>
+                <username>${env.GITHUB_ACTOR}</username>
+                <password>${env.GITHUB_TOKEN}</password>
+              </server>
+            </servers>
+          </settings>
+          XML
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: mvn -B -ntp -DskipTests deploy
+          GITHUB_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+
+      - name: Deploy BOM
+        run: mvn -B -s ~/.m2/settings.xml -DskipTests -pl :iotmining-bom -am clean deploy
+
+      - name: Deploy Parent
+        run: mvn -B -s ~/.m2/settings.xml -DskipTests -pl :iotmining-parent -am clean deploy
 
 
 #name: Release BOM & Parent to GitHub Packages
