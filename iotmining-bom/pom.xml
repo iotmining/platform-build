@@ -255,4 +255,19 @@
             </dependency>
         </dependencies>
     </dependencyManagement>
+    <distributionManagement>
+        <repository>
+            <!-- must match server-id you configure in setup-java / settings.xml -->
+            <id>github</id>
+            <name>GitHub Packages (platform-build)</name>
+            <!-- replace OWNER if different -->
+            <url>https://maven.pkg.github.com/iotmining/platform-build</url>
+        </repository>
+        <!-- optional: use same URL for snapshots if you publish them -->
+        <snapshotRepository>
+            <id>github</id>
+            <name>GitHub Packages (platform-build snapshots)</name>
+            <url>https://maven.pkg.github.com/iotmining/platform-build</url>
+        </snapshotRepository>
+    </distributionManagement>
 </project>
