@@ -1,9 +1,10 @@
 name: Release BOM & Parent to GitHub Packages
 
 on:
-  # Tag when you want to release platform versions (e.g., 2025.08.1)
   push:
+    branches: [ main ]
     tags: ['20*.*.*', '2025.*']
+  workflow_dispatch: {}
 
 permissions:
   contents: read
