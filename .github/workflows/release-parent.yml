@@ -9,47 +9,38 @@ on:
 
 permissions:
   contents: read
-  packages: write
+  packages: read   # we publish with PAT; write not needed for GITHUB_TOKEN
 
 jobs:
   release:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Java 21
+      # Writes ~/.m2/settings.xml with <server id="github"> using YOUR PAT creds
+      - name: Setup Java 21 (PAT for GH Packages)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
           cache: maven
           server-id: github
-          server-username: GITHUB_ACTOR
-          server-password: ${{ secrets.GH_PACKAGES_TOKEN }}
+          server-username: ${{ secrets.GH_PACKAGES_USER }}   # PAT owner username
+          server-password: ${{ secrets.GH_PACKAGES_TOKEN }}  # PAT value
 
-      - name: Write Maven settings.xml for GH Packages
+      # (debug) confirm settings contains the server
+      - name: Check Maven settings
         run: |
-          mkdir -p ~/.m2
-          cat > ~/.m2/settings.xml <<'XML'
-          <settings>
-            <servers>
-              <server>
-                <id>github</id>
-                <username>${env.GITHUB_ACTOR}</username>
-                <password>${env.GITHUB_TOKEN}</password>
-              </server>
-            </servers>
-          </settings>
-          XML
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+          echo "Settings: $HOME/.m2/settings.xml"
+          test -f "$HOME/.m2/settings.xml"
+          grep -A2 '<id>github</id>' "$HOME/.m2/settings.xml" || (echo "missing server github" && exit 1)
 
+      # Deploy ONLY the modules (skip aggregator)
       - name: Deploy BOM
-        run: mvn -B -s ~/.m2/settings.xml -DskipTests -pl :iotmining-bom -am clean deploy
+        run: mvn -B -s "$HOME/.m2/settings.xml" -DskipTests -pl :iotmining-bom -am clean deploy
 
       - name: Deploy Parent
-        run: mvn -B -s ~/.m2/settings.xml -DskipTests -pl :iotmining-parent -am clean deploy
+        run: mvn -B -s "$HOME/.m2/settings.xml" -DskipTests -pl :iotmining-parent -am clean deploy
 
 
 #name: Release BOM & Parent to GitHub Packages

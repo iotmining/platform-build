@@ -7,44 +7,35 @@ on:
 
 permissions:
   contents: read
-  packages: write
+  packages: read
 
 jobs:
   snapshot:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Java 21
+      - name: Setup Java 21 (PAT for GH Packages)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
           cache: maven
           server-id: github
-          server-username: GITHUB_ACTOR
+          server-username: ${{ secrets.GH_PACKAGES_USER }}
           server-password: ${{ secrets.GH_PACKAGES_TOKEN }}
 
-      - name: Write Maven settings.xml for GH Packages
+      - name: Check Maven settings
         run: |
-          mkdir -p ~/.m2
-          cat > ~/.m2/settings.xml <<'XML'
-          <settings>
-            <servers>
-              <server>
-                <id>github</id>
-                <username>${env.GITHUB_ACTOR}</username>
-                <password>${env.GITHUB_TOKEN}</password>
-              </server>
-            </servers>
-          </settings>
-          XML
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+          echo "Settings: $HOME/.m2/settings.xml"
+          test -f "$HOME/.m2/settings.xml"
+          grep -A2 '<id>github</id>' "$HOME/.m2/settings.xml" || (echo "missing server github" && exit 1)
 
+      # If your POMs already end with -SNAPSHOT on main, you can omit versions:set lines
       - name: Deploy BOM (SNAPSHOT)
-        run: mvn -B -s ~/.m2/settings.xml -DskipTests -pl :iotmining-bom -am versions:set -DnewVersion=2025.08.14-SNAPSHOT deploy
+        run: |
+          mvn -B -s "$HOME/.m2/settings.xml" -DskipTests -pl :iotmining-bom -am clean deploy
 
       - name: Deploy Parent (SNAPSHOT)
-        run: mvn -B -s ~/.m2/settings.xml -DskipTests -pl :iotmining-parent -am versions:set -DnewVersion=2025.08.14-SNAPSHOT deploy
+        run: |
+          mvn -B -s "$HOME/.m2/settings.xml" -DskipTests -pl :iotmining-parent -am clean deploy
