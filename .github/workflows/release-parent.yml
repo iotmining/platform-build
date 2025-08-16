@@ -6,73 +6,84 @@ on:
     tags: ['20*.*.*', '2025.*']        # e.g., 2025.08.14
   workflow_dispatch: {}
 
-permissions:
-  contents: read
-  packages: write
-
-# Optional PAT fallback: set GH_PACKAGES_TOKEN secret if your org blocks GITHUB_TOKEN
-env:
-  HAS_PAT: ${{ secrets.GH_PACKAGES_TOKEN != '' }}
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      # Optional PAT fallback: set GH_PACKAGES_TOKEN secret if your org blocks GITHUB_TOKEN
+      HAS_PAT: ${{ secrets.GH_PACKAGES_TOKEN != '' }}
+
     steps:
       - uses: actions/checkout@v4
 
-      # Write <server id="github"> credentials into ~/.m2/settings.xml
-      - name: Setup Java 21 (with publish server creds)
+      - name: Setup Java 21 (and Maven cache)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
           cache: maven
-          server-id: github                      # MUST match <distributionManagement><repository><id>
+          server-id: github
           server-username: GITHUB_ACTOR
           server-password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Debug: confirm the settings file exists & contains the server
-      - name: Check Maven settings
+      - name: Verify Maven settings created
         run: |
           echo "Using settings at: $HOME/.m2/settings.xml"
           test -f "$HOME/.m2/settings.xml" || (echo "settings.xml missing" && exit 1)
-          grep -A2 '<id>github</id>' "$HOME/.m2/settings.xml" || (echo "No <server id=\"github\"> found" && exit 1)
+          echo "===== settings.xml preview (servers block) ====="
+          awk '/<servers>/{p=1} p; /<\/servers>/{print; exit}' "$HOME/.m2/settings.xml" || true
 
-      # Deploy BOM first
-      - name: Deploy BOM
-        run: mvn -B -s "$HOME/.m2/settings.xml" -DskipTests clean deploy -f iotmining-bom/pom.xml
+      # Optional: only deploy on tags; branch builds do a dry run (skipTests + -DaltDeploymentRepository to /dev/null)
+      - name: Deploy BOM (tag) or build (branch)
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            mvn -B -s "$HOME/.m2/settings.xml" -DskipTests -Dstyle.color=always clean deploy -f iotmining-bom/pom.xml
+          else
+            mvn -B -DskipTests -Dstyle.color=always -f iotmining-bom/pom.xml clean verify
+          fi
 
-      # Then Parent (imports the BOM)
-      - name: Deploy Parent
-        run: mvn -B -s "$HOME/.m2/settings.xml" -DskipTests clean deploy -f iotmining-parent/pom.xml
+      - name: Deploy Parent (tag) or build (branch)
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            mvn -B -s "$HOME/.m2/settings.xml" -DskipTests -Dstyle.color=always clean deploy -f iotmining-parent/pom.xml
+          else
+            mvn -B -DskipTests -Dstyle.color=always -f iotmining-parent/pom.xml clean verify
+          fi
 
-      # Optional fallback with PAT (write:packages; enable SSO if your org requires it)
-      - name: Retry deploy with PAT fallback
+      # Fallback to PAT if publish failed and PAT is present (commonly due to org policy)
+      - name: Retry with PAT fallback
         if: ${{ failure() && env.HAS_PAT == 'true' }}
         env:
           GH_ACTOR: ${{ github.actor }}
           GH_PAT: ${{ secrets.GH_PACKAGES_TOKEN }}
         run: |
           echo "FALLBACK: retrying deploy with PAT..."
-          cp "$HOME/.m2/settings.xml" "$RUNNER_TEMP/settings.xml"
+          SETTINGS="$RUNNER_TEMP/settings.xml"
+          cat > "$SETTINGS" <<'XML'
+          <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                    xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
+            <servers>
+              <server>
+                <id>github</id>
+                <username>${env.GH_ACTOR}</username>
+                <password>${env.GH_PAT}</password>
+              </server>
+            </servers>
+          </settings>
+          XML
 
-          # If <servers> block exists, ensure/replace github server; else add it.
-          if grep -q '<servers>' "$RUNNER_TEMP/settings.xml"; then
-            # Remove existing github server block (simple approach), then append a fresh one
-            awk '
-              BEGIN{skip=0}
-              /<server>/ {inserver=1}
-              inserver && /<id>github<\/id>/ {skip=1}
-              inserver && /<\/server>/ { if(skip){skip=0; inserver=0; next} else {inserver=0} }
-              { if(!skip) print }
-            ' "$RUNNER_TEMP/settings.xml" > "$RUNNER_TEMP/settings.pruned.xml"
-            mv "$RUNNER_TEMP/settings.pruned.xml" "$RUNNER_TEMP/settings.xml"
-            # Append github server inside <servers>
-            sed -i "s#</servers>#  <server><id>github</id><username>${GH_ACTOR}</username><password>${GH_PAT}</password></server>\n  </servers>#g" "$RUNNER_TEMP/settings.xml"
+          # Re-run only on tags; if the failure was on branch, just exit 0 to not block CI
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            mvn -B -s "$SETTINGS" -DskipTests -Dstyle.color=always clean deploy -f iotmining-bom/pom.xml || exit 1
+            mvn -B -s "$SETTINGS" -DskipTests -Dstyle.color=always clean deploy -f iotmining-parent/pom.xml || exit 1
           else
-            # Add a new <servers> block
-            sed -i "s#</settings>#  <servers>\n    <server><id>github</id><username>${GH_ACTOR}</username><password>${GH_PAT}</password></server>\n  </servers>\n</settings>#g" "$RUNNER_TEMP/settings.xml"
+            echo "Branch build failed earlier; PAT fallback is only for tag publishes. Skipping."
           fi
-
-          mvn -B -s "$RUNNER_TEMP/settings.xml" -DskipTests clean deploy -f iotmining-bom/pom.xml || true
-          mvn -B -s "$RUNNER_TEMP/settings.xml" -DskipTests clean deploy -f iotmining-parent/pom.xml
