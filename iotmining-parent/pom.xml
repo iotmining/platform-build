@@ -6,7 +6,7 @@
 
     <groupId>com.iotmining.build</groupId>
     <artifactId>iotmining-parent</artifactId>
-    <version>2025.08.16</version>
+    <version>2025.08.17</version>
     <packaging>pom</packaging>
     <name>IoTMining Parent</name>
     <description>Central pluginManagement, quality &amp; security profiles for IoTMining</description>
