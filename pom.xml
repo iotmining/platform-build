@@ -13,8 +13,8 @@
     <url>https://github.com/iotmining/iotmining-build</url>
 
     <modules>
-        <module>bom</module>
-        <module>parent</module>
+        <module>iotmining-bom</module>
+        <module>iotmining-parent</module>
     </modules>
 
     <licenses>
