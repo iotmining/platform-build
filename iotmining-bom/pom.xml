@@ -6,20 +6,53 @@
 
     <groupId>com.iotmining.build</groupId>
     <artifactId>iotmining-bom</artifactId>
-    <version>2025.08.16</version>
+    <version>2025.08.14</version>
     <packaging>pom</packaging>
     <name>IoTMining BOM</name>
-    <description>Central dependency version alignment for all IoTMining services.</description>
+    <description>Central dependency version alignment for all IoTMining services</description>
+    <url>https://github.com/iotmining/platform-build</url>
+
+    <licenses>
+        <license>
+            <name>The Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <scm>
+        <url>https://github.com/iotmining/platform-build</url>
+        <connection>scm:git:https://github.com/iotmining/platform-build.git</connection>
+        <developerConnection>scm:git:ssh://git@github.com/iotmining/platform-build.git</developerConnection>
+        <tag>HEAD</tag>
+    </scm>
+
+    <!-- Publish target: GitHub Packages (owner/repo must match your repo) -->
+    <distributionManagement>
+        <repository>
+            <id>github</id>
+            <name>GitHub Packages (platform-build)</name>
+            <url>https://maven.pkg.github.com/iotmining/platform-build</url>
+        </repository>
+        <snapshotRepository>
+            <id>github</id>
+            <name>GitHub Packages (platform-build snapshots)</name>
+            <url>https://maven.pkg.github.com/iotmining/platform-build</url>
+        </snapshotRepository>
+    </distributionManagement>
 
     <properties>
+        <!-- Core stack -->
         <java.version>21</java.version>
-        <spring.boot.version>3.5.4</spring.boot.version>
-        <spring.cloud.version>2025.0.0</spring.cloud.version>
+        <spring.boot.version>3.4.4</spring.boot.version>
+        <spring.cloud.version>2024.0.2</spring.cloud.version>
 
+        <!-- BOMs -->
         <testcontainers.bom.version>1.20.3</testcontainers.bom.version>
         <micrometer.tracing.version>1.3.3</micrometer.tracing.version>
         <jackson.bom.version>2.17.2</jackson.bom.version>
 
+        <!-- Data & infra -->
         <flyway.version>10.16.0</flyway.version>
         <postgres.version>42.7.4</postgres.version>
         <mysql.version>9.1.0</mysql.version>
@@ -30,13 +63,16 @@
         <minio.version>8.5.9</minio.version>
         <elasticsearch.client.version>8.15.2</elasticsearch.client.version>
 
+        <!-- Serialization / schema -->
         <protobuf.version>3.25.3</protobuf.version>
         <confluent.avro.version>7.7.1</confluent.avro.version>
 
+        <!-- Security -->
         <jjwt.version>0.12.5</jjwt.version>
         <bouncycastle.version>1.78.1</bouncycastle.version>
         <passay.version>1.7.4</passay.version>
 
+        <!-- Utils / logging -->
         <mapstruct.version>1.6.2</mapstruct.version>
         <caffeine.version>3.1.8</caffeine.version>
         <commons.lang3.version>3.14.0</commons.lang3.version>
@@ -44,6 +80,7 @@
         <logstash.encoder.version>7.4</logstash.encoder.version>
         <logbook.version>3.8.0</logbook.version>
 
+        <!-- Testing -->
         <junit.jupiter.version>5.10.3</junit.jupiter.version>
         <assertj.version>3.25.3</assertj.version>
         <mockito.version>5.12.0</mockito.version>
@@ -63,6 +100,7 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+
             <dependency>
                 <groupId>org.springframework.cloud</groupId>
                 <artifactId>spring-cloud-dependencies</artifactId>
@@ -98,7 +136,7 @@
                 <scope>import</scope>
             </dependency>
 
-            <!-- Core libs -->
+            <!-- Core libs (versions pinned here; services omit versions) -->
             <dependency>
                 <groupId>org.mapstruct</groupId>
                 <artifactId>mapstruct</artifactId>
@@ -150,7 +188,7 @@
                 <version>${elasticsearch.client.version}</version>
             </dependency>
 
-            <!-- Serialization -->
+            <!-- Serialization / schema -->
             <dependency>
                 <groupId>com.google.protobuf</groupId>
                 <artifactId>protobuf-java</artifactId>
@@ -249,17 +287,4 @@
             </dependency>
         </dependencies>
     </dependencyManagement>
-
-    <distributionManagement>
-        <repository>
-            <id>github</id>
-            <name>GitHub Packages</name>
-            <url>https://maven.pkg.github.com/iotmining/iotmining-build</url>
-        </repository>
-        <snapshotRepository>
-            <id>github</id>
-            <name>GitHub Packages Snapshots</name>
-            <url>https://maven.pkg.github.com/iotmining/iotmining-build</url>
-        </snapshotRepository>
-    </distributionManagement>
 </project>
