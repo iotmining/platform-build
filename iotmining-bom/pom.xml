@@ -6,7 +6,7 @@
 
     <groupId>com.iotmining.build</groupId>
     <artifactId>iotmining-bom</artifactId>
-    <version>2025.08.17</version>
+    <version>2025.08.18</version>
     <packaging>pom</packaging>
     <name>IoTMining BOM</name>
     <description>Central dependency version alignment for all IoTMining services</description>
