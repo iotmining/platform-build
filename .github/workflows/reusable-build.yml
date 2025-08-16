@@ -1,0 +1,32 @@
+name: Reusable Build
+on:
+  workflow_call:
+    inputs:
+      run_security:
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: 'maven'
+      - name: Maven Verify (tests + jacoco + spotless + enforcer)
+        run: mvn -B -U -DskipITs=false -Pci verify
+      - name: OWASP Dependency Check
+        if: ${{ inputs.run_security }}
+        run: mvn -B -Psecurity org.owasp:dependency-check-maven:check -DskipTests
+      - name: Upload reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: maven-reports
+          path: |
+            **/target/site/**
+            **/target/surefire-reports/**
+            **/target/failsafe-reports/**

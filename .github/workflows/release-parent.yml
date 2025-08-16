@@ -1,0 +1,67 @@
+name: Release BOM & Parent to GitHub Packages
+
+on:
+  # Tag when you want to release platform versions (e.g., 2025.08.1)
+  push:
+    tags: ['20*.*.*', '2025.*']
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java 21 (with publish server creds)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: 'maven'
+          server-id: github
+          server-username: GITHUB_ACTOR
+          server-password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Make sure builds can also RESOLVE from GH Packages
+      - name: Write settings.xml with GH Packages repo profile
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml <<'XML'
+          <settings>
+            <profiles>
+              <profile>
+                <id>github-repo</id>
+                <repositories>
+                  <repository>
+                    <id>github</id>
+                    <url>https://maven.pkg.github.com/${env.REPO_OWNER}/platform-build</url>
+                    <releases><enabled>true</enabled></releases>
+                    <snapshots><enabled>true</enabled></snapshots>
+                  </repository>
+                </repositories>
+                <pluginRepositories>
+                  <pluginRepository>
+                    <id>github</id>
+                    <url>https://maven.pkg.github.com/${env.REPO_OWNER}/platform-build</url>
+                    <releases><enabled>true</enabled></releases>
+                    <snapshots><enabled>true</enabled></snapshots>
+                  </pluginRepository>
+                </pluginRepositories>
+              </profile>
+            </profiles>
+            <activeProfiles>
+              <activeProfile>github-repo</activeProfile>
+            </activeProfiles>
+          </settings>
+          XML
+        env:
+          REPO_OWNER: ${{ github.repository_owner }}
+
+      - name: Deploy BOM
+        run: mvn -B -s ~/.m2/settings.xml -f iotmining-bom/pom.xml clean deploy
+
+      - name: Deploy Parent
+        run: mvn -B -s ~/.m2/settings.xml -f iotmining-parent/pom.xml clean deploy

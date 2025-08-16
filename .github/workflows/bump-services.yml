@@ -1,0 +1,34 @@
+name: Bump Services to New Platform Version
+on:
+  workflow_dispatch:
+    inputs:
+      new_parent_version:
+        description: 'iotmining-parent version (e.g., 2025.08.1)'
+        required: true
+      new_bom_version:
+        description: 'iotmining-bom version (e.g., 2025.08.1)'
+        required: true
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Emit repository_dispatch to service repos
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const services = [
+              'auth','api-gateway','tms','pricing-catalog',
+              'notification','alert','rule-engine'
+            ];
+            for (const repo of services) {
+              await github.rest.repos.createDispatchEvent({
+                owner: context.repo.owner,
+                repo,
+                event_type: 'bump-platform',
+                client_payload: {
+                  parent: core.getInput('new_parent_version'),
+                  bom: core.getInput('new_bom_version')
+                }
+              });
+            }

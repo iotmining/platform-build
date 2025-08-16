@@ -1,0 +1,20 @@
+name: Reusable Security
+on:
+  workflow_call:
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: OWASP Dependency Check
+        run: mvn -B -Psecurity org.owasp:dependency-check-maven:check -DskipTests
+      - name: Generate CycloneDX SBOM
+        run: mvn -B -Psbom org.cyclonedx:cyclonedx-maven-plugin:makeAggregateBom -DskipTests
+      - name: Upload Security Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-artifacts
+          path: |
+            **/dependency-check-report.*
+            **/target/bom.xml
