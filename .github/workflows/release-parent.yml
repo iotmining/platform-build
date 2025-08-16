@@ -2,8 +2,8 @@ name: Release BOM & Parent to GitHub Packages
 
 on:
   push:
-    branches: [ main ]                 # keep during testing
-    tags: ['20*.*.*', '2025.*']        # e.g., 2025.08.14
+    branches: [ main ]                      # keep during testing
+    tags: ['20*.*.*', '2025.*']             # e.g., 2025.08.16
   workflow_dispatch: {}
 
 concurrency:
@@ -19,6 +19,8 @@ jobs:
     env:
       # Optional PAT fallback: set GH_PACKAGES_TOKEN secret if your org blocks GITHUB_TOKEN
       HAS_PAT: ${{ secrets.GH_PACKAGES_TOKEN != '' }}
+      GH_OWNER: ${{ github.repository_owner }}
+      GH_REPO:  ${{ github.repository }}  # e.g., iotmining/platform-build
 
     steps:
       - uses: actions/checkout@v4
@@ -33,31 +35,116 @@ jobs:
           server-username: GITHUB_ACTOR
           server-password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Verify Maven settings created
+      - name: Add GitHub Packages repository to settings (for resolve)
         run: |
-          echo "Using settings at: $HOME/.m2/settings.xml"
-          test -f "$HOME/.m2/settings.xml" || (echo "settings.xml missing" && exit 1)
-          echo "===== settings.xml preview (servers block) ====="
-          awk '/<servers>/{p=1} p; /<\/servers>/{print; exit}' "$HOME/.m2/settings.xml" || true
+          SETTINGS="$HOME/.m2/settings.xml"
+          cp "$SETTINGS" "$RUNNER_TEMP/settings.base.xml"
 
-      # Optional: only deploy on tags; branch builds do a dry run (skipTests + -DaltDeploymentRepository to /dev/null)
-      - name: Deploy BOM (tag) or build (branch)
+          # Recompose settings by keeping setup-java content and adding a profile that points to this repo's GPR
+          awk 'NR==1,/<\/settings>/{print}' "$RUNNER_TEMP/settings.base.xml" \
+          | sed '1d;$d' > "$RUNNER_TEMP/settings.inner.xml"
+
+          cat > "$HOME/.m2/settings.xml" <<XML
+          <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                    xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
+            $(cat "$RUNNER_TEMP/settings.inner.xml")
+
+            <profiles>
+              <profile>
+                <id>github-packages</id>
+                <repositories>
+                  <repository>
+                    <id>github</id>
+                    <name>GitHub Packages</name>
+                    <url>https://maven.pkg.github.com/${GH_REPO}</url>
+                    <releases><enabled>true</enabled></releases>
+                    <snapshots><enabled>true</enabled></snapshots>
+                  </repository>
+                </repositories>
+                <pluginRepositories>
+                  <pluginRepository>
+                    <id>github-plugins</id>
+                    <name>GitHub Packages Plugins</name>
+                    <url>https://maven.pkg.github.com/${GH_REPO}</url>
+                    <releases><enabled>true</enabled></releases>
+                    <snapshots><enabled>true</enabled></snapshots>
+                  </pluginRepository>
+                </pluginRepositories>
+              </profile>
+            </profiles>
+
+            <activeProfiles>
+              <activeProfile>github-packages</activeProfile>
+            </activeProfiles>
+          </settings>
+          XML
+
+      - name: Show Maven settings (servers + profile)
+        run: |
+          echo "===== servers ====="
+          awk '/<servers>/{p=1} p; /<\/servers>/{print; exit}' "$HOME/.m2/settings.xml" || true
+          echo "===== profiles ====="
+          awk '/<profiles>/{p=1} p; /<\/profiles>/{print; exit}' "$HOME/.m2/settings.xml" || true
+          echo "===== activeProfiles ====="
+          awk '/<activeProfiles>/{p=1} p; /<\/activeProfiles>/{print; exit}' "$HOME/.m2/settings.xml" || true
+
+      - name: Install tools for version checks
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y libxml2-utils
+
+      - name: Compute & validate release version (tag builds)
+        id: ver
         run: |
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            mvn -B -s "$HOME/.m2/settings.xml" -DskipTests -Dstyle.color=always clean deploy -f iotmining-bom/pom.xml
+            TAG="${GITHUB_REF##*/}"
+            echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+            # Read versions from POMs
+            BOM_VER=$(xmllint --xpath "string(/project/version)" iotmining-bom/pom.xml)
+            PARENT_VER=$(xmllint --xpath "string(/project/version)" iotmining-parent/pom.xml)
+            IMPORT_VER=$(xmllint --xpath "string(//dependency[artifactId='iotmining-bom']/version)" iotmining-parent/pom.xml)
+
+            echo "TAG: $TAG"
+            echo "BOM version: $BOM_VER"
+            echo "Parent version: $PARENT_VER"
+            echo "Parent imports BOM version: $IMPORT_VER"
+
+            if [[ "$TAG" != "$BOM_VER" || "$TAG" != "$PARENT_VER" || "$TAG" != "$IMPORT_VER" ]]; then
+              echo "POM versions do not match tag. Updating to $TAG…"
+              mvn -q -N versions:set -DnewVersion="$TAG" -DgenerateBackupPoms=false -f iotmining-bom/pom.xml
+              mvn -q -N versions:set -DnewVersion="$TAG" -DgenerateBackupPoms=false -f iotmining-parent/pom.xml
+              # update the import version inside parent
+              xmlstarlet ed -P -L -u "//dependency[artifactId='iotmining-bom']/version" -v "$TAG" iotmining-parent/pom.xml || \
+                sed -i "s#<artifactId>iotmining-bom</artifactId>\\s*<version>.*</version>#<artifactId>iotmining-bom</artifactId><version>${TAG}</version>#g" iotmining-parent/pom.xml
+            fi
           else
-            mvn -B -DskipTests -Dstyle.color=always -f iotmining-bom/pom.xml clean verify
+            echo "tag=" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Deploy Parent (tag) or build (branch)
+      # Ensure the BOM is resolvable locally before building the parent
+      - name: Install BOM locally
+        run: mvn -B -DskipTests -Dstyle.color=always -f iotmining-bom/pom.xml clean install
+
+      # Tag: deploy | Branch: verify (no publish)
+      - name: Build/Publish BOM
         run: |
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            mvn -B -s "$HOME/.m2/settings.xml" -DskipTests -Dstyle.color=always clean deploy -f iotmining-parent/pom.xml
+            mvn -B -s "$HOME/.m2/settings.xml" -DskipTests -Dstyle.color=always -f iotmining-bom/pom.xml deploy
+          else
+            mvn -B -DskipTests -Dstyle.color=always -f iotmining-bom/pom.xml verify
+          fi
+
+      - name: Build/Publish Parent
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            mvn -B -s "$HOME/.m2/settings.xml" -DskipTests -Dstyle.color=always -f iotmining-parent/pom.xml clean deploy
           else
             mvn -B -DskipTests -Dstyle.color=always -f iotmining-parent/pom.xml clean verify
           fi
 
-      # Fallback to PAT if publish failed and PAT is present (commonly due to org policy)
+      # Fallback to PAT if publish failed and PAT is present (org policy)
       - name: Retry with PAT fallback
         if: ${{ failure() && env.HAS_PAT == 'true' }}
         env:
@@ -65,25 +152,48 @@ jobs:
           GH_PAT: ${{ secrets.GH_PACKAGES_TOKEN }}
         run: |
           echo "FALLBACK: retrying deploy with PAT..."
-          SETTINGS="$RUNNER_TEMP/settings.xml"
-          cat > "$SETTINGS" <<'XML'
+          SETTINGS="$RUNNER_TEMP/settings.pat.xml"
+          cat > "$SETTINGS" <<XML
           <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
                     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                     xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
             <servers>
               <server>
                 <id>github</id>
-                <username>${env.GH_ACTOR}</username>
-                <password>${env.GH_PAT}</password>
+                <username>${GH_ACTOR}</username>
+                <password>${GH_PAT}</password>
               </server>
             </servers>
+            <profiles>
+              <profile>
+                <id>github-packages</id>
+                <repositories>
+                  <repository>
+                    <id>github</id>
+                    <url>https://maven.pkg.github.com/${GH_REPO}</url>
+                    <releases><enabled>true</enabled></releases>
+                    <snapshots><enabled>true</enabled></snapshots>
+                  </repository>
+                </repositories>
+                <pluginRepositories>
+                  <pluginRepository>
+                    <id>github-plugins</id>
+                    <url>https://maven.pkg.github.com/${GH_REPO}</url>
+                    <releases><enabled>true</enabled></releases>
+                    <snapshots><enabled>true</enabled></snapshots>
+                  </pluginRepository>
+                </pluginRepositories>
+              </profile>
+            </profiles>
+            <activeProfiles>
+              <activeProfile>github-packages</activeProfile>
+            </activeProfiles>
           </settings>
           XML
 
-          # Re-run only on tags; if the failure was on branch, just exit 0 to not block CI
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            mvn -B -s "$SETTINGS" -DskipTests -Dstyle.color=always clean deploy -f iotmining-bom/pom.xml || exit 1
-            mvn -B -s "$SETTINGS" -DskipTests -Dstyle.color=always clean deploy -f iotmining-parent/pom.xml || exit 1
+            mvn -B -s "$SETTINGS" -DskipTests -Dstyle.color=always -f iotmining-bom/pom.xml deploy
+            mvn -B -s "$SETTINGS" -DskipTests -Dstyle.color=always -f iotmining-parent/pom.xml deploy
           else
             echo "Branch build failed earlier; PAT fallback is only for tag publishes. Skipping."
           fi

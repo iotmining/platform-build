@@ -5,7 +5,7 @@
 
     <groupId>com.iotmining.build</groupId>
     <artifactId>iotmining-parent</artifactId>
-    <version>2025.08.1</version>
+    <version>2025.08.16</version>
     <packaging>pom</packaging>
     <name>IoTMining Parent</name>
     <description>Central pluginManagement, quality &amp; security profiles for IoTMining.</description>
@@ -22,7 +22,7 @@
             <dependency>
                 <groupId>com.iotmining.build</groupId>
                 <artifactId>iotmining-bom</artifactId>
-                <version>2025.08.13</version>
+                <version>2025.08.16</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -47,7 +47,6 @@
                     <executions>
                         <execution>
                             <goals>
-                                <goal>Enforce</goal>
                                 <goal>enforce</goal>
                             </goals>
                             <configuration>
@@ -249,18 +248,17 @@
             </build>
         </profile>
     </profiles>
+
     <distributionManagement>
         <repository>
             <id>github</id>
             <name>GitHub Packages (platform-build)</name>
-            <url>https://maven.pkg.github.com/OWNER/REPO</url>
+            <url>https://maven.pkg.github.com/iotmining/platform-build</url>
         </repository>
         <snapshotRepository>
             <id>github</id>
             <name>GitHub Packages (platform-build snapshots)</name>
-            <url>https://maven.pkg.github.com/OWNER/REPO</url>
+            <url>https://maven.pkg.github.com/iotmining/platform-build</url>
         </snapshotRepository>
     </distributionManagement>
-
-
 </project>

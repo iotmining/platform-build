@@ -5,7 +5,7 @@
 
     <groupId>com.iotmining.build</groupId>
     <artifactId>iotmining-bom</artifactId>
-    <version>2025.08.13</version>
+    <version>2025.08.16</version>
     <packaging>pom</packaging>
     <name>IoTMining BOM</name>
     <description>Central dependency version alignment for all IoTMining services.</description>
@@ -255,18 +255,17 @@
             </dependency>
         </dependencies>
     </dependencyManagement>
+
     <distributionManagement>
         <repository>
             <id>github</id>
             <name>GitHub Packages (platform-build)</name>
-            <url>https://maven.pkg.github.com/OWNER/REPO</url>
+            <url>https://maven.pkg.github.com/iotmining/platform-build</url>
         </repository>
         <snapshotRepository>
             <id>github</id>
             <name>GitHub Packages (platform-build snapshots)</name>
-            <url>https://maven.pkg.github.com/OWNER/REPO</url>
+            <url>https://maven.pkg.github.com/iotmining/platform-build</url>
         </snapshotRepository>
     </distributionManagement>
-
-
 </project>
