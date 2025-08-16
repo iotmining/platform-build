@@ -2,8 +2,8 @@ name: Release BOM & Parent to GitHub Packages
 
 on:
   push:
-    branches: [ main ]
-    tags: ['20*.*.*', '2025.*']
+    branches: [ main ]                 # also run on main pushes (handy while testing)
+    tags: ['20*.*.*', '2025.*']        # run on release tags like 2025.08.13
   workflow_dispatch: {}
 
 permissions:
@@ -16,53 +16,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Injects <server id="github"> with GITHUB_ACTOR / GITHUB_TOKEN into settings.xml
       - name: Setup Java 21 (with publish server creds)
+        id: setup-java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
           cache: 'maven'
-          server-id: github
+          server-id: github                      # MUST match <distributionManagement><repository><id>
           server-username: GITHUB_ACTOR
           server-password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Make sure builds can also RESOLVE from GH Packages
-      - name: Write settings.xml with GH Packages repo profile
+      # Optional sanity check (don't remove settings.xml!)
+      - name: Show settings path (debug)
         run: |
-          mkdir -p ~/.m2
-          cat > ~/.m2/settings.xml <<'XML'
-          <settings>
-            <profiles>
-              <profile>
-                <id>github-repo</id>
-                <repositories>
-                  <repository>
-                    <id>github</id>
-                    <url>https://maven.pkg.github.com/${env.REPO_OWNER}/platform-build</url>
-                    <releases><enabled>true</enabled></releases>
-                    <snapshots><enabled>true</enabled></snapshots>
-                  </repository>
-                </repositories>
-                <pluginRepositories>
-                  <pluginRepository>
-                    <id>github</id>
-                    <url>https://maven.pkg.github.com/${env.REPO_OWNER}/platform-build</url>
-                    <releases><enabled>true</enabled></releases>
-                    <snapshots><enabled>true</enabled></snapshots>
-                  </pluginRepository>
-                </pluginRepositories>
-              </profile>
-            </profiles>
-            <activeProfiles>
-              <activeProfile>github-repo</activeProfile>
-            </activeProfiles>
-          </settings>
-          XML
-        env:
-          REPO_OWNER: ${{ github.repository_owner }}
+          echo "Using settings at: ${{ steps.setup-java.outputs.settings-path || '~/.m2/settings.xml' }}"
+          grep -A2 '<id>github</id>' ~/.m2/settings.xml || true
 
+      # Deploy BOM first
       - name: Deploy BOM
-        run: mvn -B -s ~/.m2/settings.xml -f iotmining-bom/pom.xml clean deploy
+        run: mvn -B -DskipTests clean deploy -f iotmining-bom/pom.xml
 
+      # Then Parent (which imports the BOM)
       - name: Deploy Parent
-        run: mvn -B -s ~/.m2/settings.xml -f iotmining-parent/pom.xml clean deploy
+        run: mvn -B -DskipTests clean deploy -f iotmining-parent/pom.xml
