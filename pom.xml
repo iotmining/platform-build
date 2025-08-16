@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.iotmining.build</groupId>
+    <artifactId>iotmining-build</artifactId>
+    <version>2025.08.16</version>
+    <packaging>pom</packaging>
+    <name>IoTMining Build Aggregator</name>
+    <description>Aggregator for IoTMining BOM and Parent POM</description>
+    <url>https://github.com/iotmining/iotmining-build</url>
+
+    <modules>
+        <module>iotmining-bom</module>
+        <module>iotmining-parent</module>
+    </modules>
+
+    <licenses>
+        <license>
+            <name>Apache License 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <scm>
+        <url>https://github.com/iotmining/iotmining-build</url>
+        <connection>scm:git:https://github.com/iotmining/iotmining-build.git</connection>
+        <developerConnection>scm:git:ssh://git@github.com/iotmining/iotmining-build.git</developerConnection>
+        <tag>HEAD</tag>
+    </scm>
+
+    <!-- So child projects using the parent can resolve GitHub Packages without extra config -->
+    <repositories>
+        <repository>
+            <id>github</id>
+            <url>https://maven.pkg.github.com/iotmining/*</url>
+        </repository>
+        <repository>
+            <id>central</id>
+            <url>https://repo1.maven.org/maven2/</url>
+        </repository>
+    </repositories>
+    <pluginRepositories>
+        <pluginRepository>
+            <id>central</id>
+            <url>https://repo1.maven.org/maven2/</url>
+        </pluginRepository>
+    </pluginRepositories>
+</project>

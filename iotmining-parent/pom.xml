@@ -11,6 +11,16 @@
     <name>IoTMining Parent</name>
     <description>Central pluginManagement, quality &amp; security profiles for IoTMining.</description>
 
+    <url>https://github.com/iotmining/iotmining-build</url>
+
+    <licenses>
+        <license>
+            <name>Apache License 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
@@ -196,45 +206,16 @@
         </profile>
     </profiles>
 
-    <!-- Where to publish -->
     <distributionManagement>
         <repository>
             <id>github</id>
-            <name>GitHub Packages (platform-build)</name>
-            <url>https://maven.pkg.github.com/iotmining/platform-build</url>
+            <name>GitHub Packages</name>
+            <url>https://maven.pkg.github.com/iotmining/iotmining-build</url>
         </repository>
         <snapshotRepository>
             <id>github</id>
-            <name>GitHub Packages (platform-build snapshots)</name>
-            <url>https://maven.pkg.github.com/iotmining/platform-build</url>
+            <name>GitHub Packages Snapshots</name>
+            <url>https://maven.pkg.github.com/iotmining/iotmining-build</url>
         </snapshotRepository>
     </distributionManagement>
-
-    <!-- Where to resolve from (so this parent can import the BOM from GitHub) -->
-    <repositories>
-        <repository>
-            <id>github</id>
-            <url>https://maven.pkg.github.com/iotmining/platform-build</url>
-            <releases><enabled>true</enabled></releases>
-            <snapshots><enabled>true</enabled></snapshots>
-        </repository>
-        <repository>
-            <id>central</id>
-            <url>https://repo.maven.apache.org/maven2</url>
-        </repository>
-    </repositories>
-
-    <pluginRepositories>
-        <pluginRepository>
-            <id>github-plugins</id>
-            <url>https://maven.pkg.github.com/iotmining/platform-build</url>
-            <releases><enabled>true</enabled></releases>
-            <snapshots><enabled>true</enabled></snapshots>
-        </pluginRepository>
-        <pluginRepository>
-            <id>central</id>
-            <url>https://repo.maven.apache.org/maven2</url>
-        </pluginRepository>
-    </pluginRepositories>
-
 </project>

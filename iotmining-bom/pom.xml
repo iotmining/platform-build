@@ -250,62 +250,16 @@
         </dependencies>
     </dependencyManagement>
 
-    <!-- Where to publish -->
     <distributionManagement>
         <repository>
             <id>github</id>
-            <name>GitHub Packages (platform-build)</name>
-            <url>https://maven.pkg.github.com/iotmining/platform-build</url>
+            <name>GitHub Packages</name>
+            <url>https://maven.pkg.github.com/iotmining/iotmining-build</url>
         </repository>
         <snapshotRepository>
             <id>github</id>
-            <name>GitHub Packages (platform-build snapshots)</name>
-            <url>https://maven.pkg.github.com/iotmining/platform-build</url>
+            <name>GitHub Packages Snapshots</name>
+            <url>https://maven.pkg.github.com/iotmining/iotmining-build</url>
         </snapshotRepository>
     </distributionManagement>
-
-    <!-- Where to resolve from (so parent/consumers don’t look at Central for this BOM) -->
-    <repositories>
-        <repository>
-            <id>github</id>
-            <url>https://maven.pkg.github.com/iotmining/platform-build</url>
-            <releases><enabled>true</enabled></releases>
-            <snapshots><enabled>true</enabled></snapshots>
-        </repository>
-        <repository>
-            <id>central</id>
-            <url>https://repo.maven.apache.org/maven2</url>
-        </repository>
-    </repositories>
-
-    <pluginRepositories>
-        <pluginRepository>
-            <id>github-plugins</id>
-            <url>https://maven.pkg.github.com/iotmining/platform-build</url>
-            <releases><enabled>true</enabled></releases>
-            <snapshots><enabled>true</enabled></snapshots>
-        </pluginRepository>
-        <pluginRepository>
-            <id>central</id>
-            <url>https://repo.maven.apache.org/maven2</url>
-        </pluginRepository>
-    </pluginRepositories>
-
-    <!-- Pin deploy plugin (matches workflow forcing altDeploymentRepository) -->
-    <build>
-        <pluginManagement>
-            <plugins>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-deploy-plugin</artifactId>
-                    <version>3.1.3</version>
-                    <configuration>
-                        <retryFailedDeploymentCount>3</retryFailedDeploymentCount>
-                        <altDeploymentRepository>${altDeploymentRepository}</altDeploymentRepository>
-                        <skip>false</skip>
-                    </configuration>
-                </plugin>
-            </plugins>
-        </pluginManagement>
-    </build>
 </project>

@@ -1,0 +1,38 @@
+name: snapshot-publish
+
+on:
+  push:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish-snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          server-id: github
+          server-username: GITHUB_ACTOR
+          server-password: GITHUB_TOKEN
+
+      - name: Ensure -SNAPSHOT version
+        run: |
+          CURR=$(mvn -q -Dexec.executable=echo -Dexec.args='${project.version}' --non-recursive exec:exec)
+          if [[ "$CURR" != *-SNAPSHOT ]]; then
+            NEXT="${CURR}-SNAPSHOT"
+            mvn -B -ntp versions:set -DnewVersion=${NEXT} -pl bom,parent
+            mvn -B -ntp versions:commit
+          fi
+
+      - name: Deploy snapshot
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: mvn -B -ntp -DskipTests deploy
