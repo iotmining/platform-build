@@ -68,7 +68,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <!-- Parallel/unit test defaults (can be overridden per service) -->
         <surefire.parallel>classes</surefire.parallel>
-        <surefire.threadCount>1C</surefire.threadCount>
+        <surefire.threadCount>1</surefire.threadCount>
 
         <!-- Plugin versions (pin here for reproducibility) -->
         <maven.compiler.plugin.version>3.12.1</maven.compiler.plugin.version>
